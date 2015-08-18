@@ -8,6 +8,7 @@ forked from Adam Gągol's script based on Elena Cuoco's
 """
 
 import numpy as np
+import time
 import pandas as pd
 from scipy.signal import butter, lfilter
 from sklearn.linear_model import LogisticRegression
@@ -16,6 +17,7 @@ from sklearn.qda import QDA
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import svm
+#from scipy.fftpack import fft
 #############function to read data###########
 FNAME = "/media/winter/DA70C3D670C3B791/eegdata/data/input/{0}/subj{1}_series{2}_{3}.csv"
 def load_data(subj, series=range(1,9), prefix = 'train'):
@@ -32,12 +34,13 @@ def compute_features(X, scale=None):
     X0 = [x[:,0] for x in X]
     X = np.concatenate(X, axis=0)
     F = [];
+    RES = [];
     for fc in np.linspace(0,1,11)[1:]:
         b,a = butter(3,fc/250.0,btype='lowpass')
         F.append(np.concatenate([lfilter(b,a,x0) for x0 in X0], axis=0)[:,np.newaxis])
     F = np.concatenate(F, axis=1)
     F = np.concatenate((X,F,F**2), axis=1)
-        
+       
     if scale is None:    
         scale = StandardScaler()
         F = scale.fit_transform(F)
@@ -45,6 +48,8 @@ def compute_features(X, scale=None):
     else:
         F = scale.transform(F)
         return F
+    
+
 
 
 #%%########### Initialize ####################################################
@@ -55,11 +60,15 @@ cols = ['HandStart','FirstDigitTouch',
 
 subjects = range(1,13)
 idx_tot = []
-#scores_tot1 = []
-#scores_tot2 = []
-#scores_tot3 = []
+scores_tot1 = []
+scores_tot2 = []
+scores_tot3 = []
 scores_tot4 = []
-#scores_tot5 = []
+scores_tot5 = []
+
+def my_func(a):
+    """Average first and last element of a 1-D array"""
+    return np.fft(a)
 
 ###loop on subjects and 8 series for train data + 2 series for test data
 for subject in subjects:
@@ -67,20 +76,38 @@ for subject in subjects:
     X_train, y = load_data(subject)
     X_test, idx = load_data(subject,[9,10],'test')
 
+
 ################ Train classifiers ###########################################
-    #lda = LDA()
+    #lda = LDA() # try? solver='eigen', shrinkage='auto'
     #rf = RandomForestClassifier(n_estimators=200, n_jobs=-1, criterion="entropy", random_state=1)
-    #lr = LogisticRegression()
-    clf = svm.SVC(probability=True)
+    lr = LogisticRegression()
+    #clf = svm.SVC(probability=True)
     
     X_train, scaler = compute_features(X_train)
-    X_test = compute_features(X_test, scaler)   #pass the learned mean and std to normalized test data
     
+    #start_time = time.time()
+    # other transformations:
+    #for i in X_train.T:
+    #    i = fft(i)
+
+    #X_train = np.apply_along_axis(my_func, 0, X_train)
+    
+    #elapsed_time = time.time() - start_time
+    #print(elapsed_time) 
+    
+    X_test = compute_features(X_test, scaler)   #pass the learned mean and std to normalized test data
+    #X_test = np.apply_along_axis(my_func, 0, X_test)
+  
+    # drop eye movements
+    X_train = np.delete(X_train, [0,1], 1)
+    X_test = np.delete(X_test, [0,1], 1)
+    exit
+  
     y = np.concatenate(y,axis=0)
     #scores1 = np.empty((X_test.shape[0],6))
-    #scores2 = np.empty((X_test.shape[0],6))
+    scores2 = np.empty((X_test.shape[0],6))
     #scores3 = np.empty((X_test.shape[0],6))
-    scores4 = np.empty((X_test.shape[0],6))
+    #scores4 = np.empty((X_test.shape[0],6))
     #scores5 = np.empty((X_test.shape[0],6))
     
     downsample = 40
@@ -89,29 +116,29 @@ for subject in subjects:
         for i in range(6):
             print('Train subject %d, class %s' % (subject, cols[i]))
             #rf.fit(X_train[::downsample,:], y[::downsample,i])
-            #lda.fit(X_train[::downsample,:], y[::downsample,i])
+            lda.fit(X_train[::downsample,:], y[::downsample,i])
             #lr.fit(X_train[::downsample,:], y[::downsample,i])
-            clf.fit(X_train[::downsample,:], y[::downsample,i])  
+            #clf.fit(X_train[::downsample,:], y[::downsample,i])  
            
             #scores1[:,i] = rf.predict_proba(X_test)[:,1]
-            #scores2[:,i] = lda.predict_proba(X_test)[:,1] 
+            scores2[:,i] = lda.predict_proba(X_test)[:,1] 
             #scores3[:,i] = lr.predict_proba(X_test)[:,1]
-            scores4[:,i] = clf.predict_proba(X_test)[:,1]
+            #scores4[:,i] = clf.predict_proba(X_test)[:,1]
             #scores5[:,i] = clf.predict(X_test)[:,1]
 
     #scores_tot1.append(scores1)
-    #scores_tot2.append(scores2)
+    scores_tot2.append(scores2)
     #scores_tot3.append(scores3)
-    scores_tot4.append(scores4)
+    #scores_tot4.append(scores4)
     #scores_tot5.append(scores4)
     idx_tot.append(np.concatenate(idx))
     
 #%%########### submission file ################################################
-submission_file = 'models/model4.csv'
+submission_file = 'models/model2b.csv'
 # create pandas object for submission
 submission = pd.DataFrame(index=np.concatenate(idx_tot),
                           columns=cols,
-                          data=np.concatenate(scores_tot4))
+                          data=np.concatenate(scores_tot2))
 
 # write file
 submission.to_csv(submission_file,index_label='id',float_format='%.3f')
