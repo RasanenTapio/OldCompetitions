@@ -10,6 +10,7 @@ import numpy as np
 from sklearn import preprocessing
 import xgboost as xgb
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.ensemble import RandomForestClassifier
 
 # set operating system path
 os.chdir("/media/winter/DA70C3D670C3B791/mutualdata")
@@ -53,9 +54,10 @@ def xgboost_pred(train,labels,test, plst):
  #load train and test 
 train  = pd.read_csv('./mutualdata/train.csv', index_col=0)
 test  = pd.read_csv('./mutualdata/test.csv', index_col=0)
-
+print("Data loaded")
 
 labels = train.Hazard
+labels_m = np.array(labels)
 train.drop('Hazard', axis=1, inplace=True)
 
 train_s = train
@@ -119,7 +121,7 @@ params["max_depth"] = 8
 plst_in = list(params.items())
 
 
-preds2 = xgboost_pred(train_s,labels,test_s, plst_in)
+#preds2 = xgboost_pred(train_s,labels,test_s, plst_in)
 
 #model_3 building
 
@@ -129,6 +131,8 @@ test = test.T.to_dict().values()
 vec = DictVectorizer()
 train = vec.fit_transform(train)
 test = vec.transform(test)
+
+print("Data transformation done")
 
 # Model 3 parameters
 params = {}
@@ -145,17 +149,20 @@ plst_in = list(params.items())
 
 preds3 = xgboost_pred(train,labels,test, plst_in)
 
+# Model 4
+
+rf = RandomForestClassifier(n_estimators=100, random_state=1)
+print("Fitting RF")
+rf.fit(np.array(train_s), np.array(labels))
+print("Predicting RF")
+preds4 = rf.predict_proba(np.array(test_s))[:,1]
 
 #preds = 0.47 * (preds1**0.045) + 0.53 * (preds2**0.055)
-preds = 0.24 * (preds1**0.045) + 0.23 * (preds2**0.045) + 0.53 * (preds2**0.055)
+#preds = 0.24 * (preds1**0.045) + 0.23 * (preds2**0.045) + 0.53 * (preds2**0.055)
+
+preds = 0.35 * (preds1**0.045) + 0.45 * (preds3**0.055) + preds4 * 0.2
 
 #generate solution
 preds = pd.DataFrame({"Id": test_ind, "Hazard": preds})
 preds = preds.set_index('Id')
-preds.to_csv('./results/xgboost_benchmark_mod5.csv')
-
-preds = 0.40 * (preds1**0.045) + 0.60 * (preds2**0.055)
-
-preds = pd.DataFrame({"Id": test_ind, "Hazard": preds})
-preds = preds.set_index('Id')
-preds.to_csv('./results/xgboost_benchmark_mod6.csv')
+preds.to_csv('./results/xgboost_rf_xgboost_ensemble1.csv')
