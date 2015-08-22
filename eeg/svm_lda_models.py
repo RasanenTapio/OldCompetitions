@@ -30,16 +30,27 @@ def load_data(subj, series=range(1,9), prefix = 'train'):
     else:
         return data, idx
 
+def transform_bandpass(column_t):
+    freqs = [7, 30]
+    b,a = butter(5,np.array(freqs)/250.0,btype='bandpass')
+    return lfilter(b,a,column_t)
+    
+def transform_lowpass(column_t):
+    freqs = [20] # 35–70 Hz? # recommend: 20 Hz cut off skalaarina?
+    b,a = butter(3,np.array(freqs)/250.0,btype='lowpass')
+    return lfilter(b,a,column_t)
+
 def compute_features(X, scale=None):
-    X0 = [x[:,0] for x in X]
-    X = np.concatenate(X, axis=0)
+    X = np.concatenate(X,axis=0)
+    df_bandpass = np.apply_along_axis(transform_bandpass, 0, X)
+    print("Bandpass filtering done")
+    df_lowpass = np.apply_along_axis(transform_lowpass, 0, X)
+    print("Lowpass filtering done")
+    
     F = [];
-    RES = [];
-    for fc in np.linspace(0,1,11)[1:]:
-        b,a = butter(3,fc/250.0,btype='lowpass')
-        F.append(np.concatenate([lfilter(b,a,x0) for x0 in X0], axis=0)[:,np.newaxis])
-    F = np.concatenate(F, axis=1)
-    F = np.concatenate((X,F,F**2), axis=1)
+    
+    F = df_bandpass
+    F = np.concatenate((F,df_lowpass,df_lowpass**2), axis=1)
        
     if scale is None:    
         scale = StandardScaler()
@@ -78,9 +89,9 @@ for subject in subjects:
 
 
 ################ Train classifiers ###########################################
-    #lda = LDA() # try? solver='eigen', shrinkage='auto'
+    lda = LDA() # try? solver='eigen', shrinkage='auto'
     #rf = RandomForestClassifier(n_estimators=200, n_jobs=-1, criterion="entropy", random_state=1)
-    lr = LogisticRegression()
+    #lr = LogisticRegression()
     #clf = svm.SVC(probability=True)
     
     X_train, scaler = compute_features(X_train)
@@ -98,10 +109,9 @@ for subject in subjects:
     X_test = compute_features(X_test, scaler)   #pass the learned mean and std to normalized test data
     #X_test = np.apply_along_axis(my_func, 0, X_test)
   
-    # drop eye movements
-    X_train = np.delete(X_train, [0,1], 1)
-    X_test = np.delete(X_test, [0,1], 1)
-    exit
+    # Try imporvin score by droppin eye movements / blinking
+    #X_train = np.delete(X_train, [0,1], 1)
+    #X_test = np.delete(X_test, [0,1], 1)
   
     y = np.concatenate(y,axis=0)
     #scores1 = np.empty((X_test.shape[0],6))
@@ -110,13 +120,13 @@ for subject in subjects:
     #scores4 = np.empty((X_test.shape[0],6))
     #scores5 = np.empty((X_test.shape[0],6))
     
-    downsample = 40
+    downsample = 20
     # test SVM for 2 first subjects
     if subject in subjects:
         for i in range(6):
             print('Train subject %d, class %s' % (subject, cols[i]))
             #rf.fit(X_train[::downsample,:], y[::downsample,i])
-            lda.fit(X_train[::downsample,:], y[::downsample,i])
+            lda.fit(X_train[::,:], y[::,i])
             #lr.fit(X_train[::downsample,:], y[::downsample,i])
             #clf.fit(X_train[::downsample,:], y[::downsample,i])  
            
@@ -134,7 +144,7 @@ for subject in subjects:
     idx_tot.append(np.concatenate(idx))
     
 #%%########### submission file ################################################
-submission_file = 'models/model2b.csv'
+submission_file = 'models/model2_ds0_low2_band1_test1.csv'
 # create pandas object for submission
 submission = pd.DataFrame(index=np.concatenate(idx_tot),
                           columns=cols,
@@ -142,5 +152,3 @@ submission = pd.DataFrame(index=np.concatenate(idx_tot),
 
 # write file
 submission.to_csv(submission_file,index_label='id',float_format='%.3f')
-
-# Second file:
