@@ -20,9 +20,9 @@ def xgboost_pred(train,labels,test, plst):
     #Add shuffle data
 
 	#Using 5000 rows for early stopping. 
-	offset = 6000
+	offset = 4000
 
-	num_rounds = 10000
+	num_rounds = 2250
 	xgtest = xgb.DMatrix(test)
 
 	#create a train and validation dmatrices 
@@ -31,8 +31,10 @@ def xgboost_pred(train,labels,test, plst):
 
 	#train using early stopping and predict
 	watchlist = [(xgtrain, 'train'),(xgval, 'val')]
-	model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=1250)
-	preds1 = model.predict(xgtest,ntree_limit=model.best_iteration)
+	#model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=175)
+	model = xgb.train(plst, xgtrain, num_rounds, watchlist)
+	#preds1 = model.predict(xgtest,ntree_limit=model.best_iteration)
+	preds1 = model.predict(xgtest)
 
 
 	#reverse train and labels and use different 5k for early stopping. 
@@ -45,13 +47,14 @@ def xgboost_pred(train,labels,test, plst):
 	xgval = xgb.DMatrix(train[:offset,:], label=labels[:offset])
 
 	watchlist = [(xgtrain, 'train'),(xgval, 'val')]
-	model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=1250)
-	preds2 = model.predict(xgtest,ntree_limit=model.best_iteration)
-
+	#model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=175)
+	model = xgb.train(plst, xgtrain, num_rounds, watchlist)
+	#preds2 = model.predict(xgtest,ntree_limit=model.best_iteration)
+	preds2 = model.predict(xgtest)
 
 	#combine predictions
 	#since the metric only cares about relative rank we don't need to average
-	preds = (preds1)*1.4 + np.expm1(preds2)*8.6
+	preds = (preds1)*1.40 + np.expm1(preds2)*8.60
 	return preds
  
  #load train and test 
@@ -129,15 +132,12 @@ plst_in = list(params.items())
 
 #model_3 building
 
-#train = train.T.to_dict().values()
-#test = test.T.to_dict().values()
+train = train.T.to_dict().values()
+test = test.T.to_dict().values()
 
 vec = DictVectorizer()
-#train = vec.fit_transform(train)
-#test = vec.transform(test)
-x_dv = vec.fit_transform(train.append(test).T.to_dict().values())
-train = x_dv[:len(train), :]
-test = x_dv[len(train):, :]
+train = vec.fit_transform(train)
+test = vec.transform(test)
 
 print("Data transformation done")
 
@@ -167,10 +167,10 @@ preds3 = xgboost_pred(train,labels,test, plst_in)
 
 #preds = 0.47 * (preds1**0.045+preds2**0.045+np.expm1(preds2a)**0.045)/3 + 0.53 * (preds3**0.055 + preds3a**0.055)/2
 #preds = 0.24 * (preds1**0.045) + 0.23 * (preds2**0.045) + 0.53 * (preds2**0.055)
-preds = 0.47 * (preds1**0.045) + 0.53 * (preds2**0.055)
+preds = 0.47 * (preds1**0.045) + 0.53 * (preds3**0.055)
 #preds = 0.35 * (preds1**0.045) + 0.45 * (preds3**0.055) + preds4 * 0.2
 
 #generate solution
 preds = pd.DataFrame({"Id": test_ind, "Hazard": preds})
 preds = preds.set_index('Id')
-preds.to_csv('./results/xgboost_offset_test1.csv')
+preds.to_csv('./results/xgboost_samp70_wch_6_noear_test1.csv')
