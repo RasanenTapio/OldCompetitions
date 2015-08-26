@@ -1,24 +1,22 @@
-# Features from butter and Python
-
-# empty workspace
+# Features from Python: Butter filter and haar wavelet
 
 setwd("C:/eegdata")
-#library(data.table)
 
 #### h2o cluster ####
 
 library(h2o)
 localH2O <- h2o.init(nthread=4,Xmx="8g")
 
-predictors <- 8:118
-puut <- 12
-results_file = "gbm_t20_feat112"
+predictors <- 8:183 # predictors <- 8:dim(train_hex)[2]
+puut <- 10
+use_datasets <- "datad" #datad datas
+results_file = "gbm_t30_feat183_haar"
 
 # Loop over responses 2-7 for every subject in 1:12
 for (subject in 1:12) {
 	# Load data and training data and set labels
-	pathToTrain = paste("C:/eegdata/datas/train",subject,".csv", sep = "")
-	pathToTest = paste("C:/eegdata/datas/test",subject,".csv", sep = "")
+	pathToTrain = paste("C:/eegdata/",use_datasets,"/train",subject,".csv", sep = "")
+	pathToTest = paste("C:/eegdata/",use_datasets,"/test",subject,".csv", sep = "")
 	
 	# Load data
 	train_hex = h2o.importFile(localH2O, path = pathToTrain, key = "train_hex", header=TRUE)
@@ -26,10 +24,10 @@ for (subject in 1:12) {
 
 	# Set labels
 	names_train <- c("id","HandStart","FirstDigitTouch","BothStartLoadPhase","LiftOff","Replace","BothReleased",
-		paste("X", 1:112, sep = ""))
+		paste("X", 1:(dim(train_hex)[2]-7), sep = ""))
 	names(train_hex) <- names_train
 	print(paste("Subject",subject,"train data loaded", sep = " "))
-	names(test_hex) <- c("id",paste("X", 1:112, sep = ""))
+	names(test_hex) <- c("id",paste("X", 1:(dim(test_hex)[2]-1), sep = ""))
 	print(paste("Subject",subject,"test data loaded", sep = " "))
 
 	# fit 6 models
@@ -38,38 +36,41 @@ for (subject in 1:12) {
 	model_gbm1 <- h2o.gbm(y = 2, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut + 5, shrinkage = 0.05, interaction.depth = 13)
 	
 		#importance = TRUE try!
 	print(paste("Subject",subject,"FirstDigitTouch", sep = " "))
 	model_gbm2 <- h2o.gbm(y = 3, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut, shrinkage = c(0.05, 0.1, 0.2), interaction.depth = 13)
+		
+	# Grid search, run model_gbm2
+	stop
 
 	print(paste("Subject",subject,"BothStartLoadPhase", sep = " "))
 	model_gbm3 <- h2o.gbm(y = 4, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut, shrinkage = 0.05, interaction.depth = 13)
 
 	print(paste("Subject",subject,"LiftOff", sep = " "))
 	model_gbm4 <- h2o.gbm(y = 5, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut, shrinkage = 0.05, interaction.depth = 13)
 	
 	print(paste("Subject",subject,"Replace", sep = " "))
 	model_gbm5 <- h2o.gbm(y = 6, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut, shrinkage = 0.05, interaction.depth = 13)
 	
 	print(paste("Subject",subject,"BothReleased", sep = " "))
 	model_gbm6 <- h2o.gbm(y = 7, x = predictors,
 		data = train_hex,
 		distribution = "bernoulli",
-		n.tree = puut, shrinkage = 0.05, interaction.depth = 10)
+		n.tree = puut, shrinkage = 0.05, interaction.depth = 13)
 
 	# Fit models
 	pred_1 <- as.data.frame(h2o.predict(model_gbm1,test_hex))
@@ -104,4 +105,5 @@ for (subject in 1:12) {
 	}
 }
 
-# h2o.shutdown(localH2O)
+h2o.shutdown(localH2O)
+print("done")
