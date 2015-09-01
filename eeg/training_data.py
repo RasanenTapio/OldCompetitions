@@ -59,14 +59,39 @@ def muunna_frame(X):
     
 
 def muunna(sarake):
-    wave1 = pywt.Wavelet('haar')
-    #wave2 = pywt.Wavelet('db4')
-    aa1 = pywt.swt(np.array(sarake), wave1, level=1)
-    #aa2 = pywt.swt(np.array(sarake), wave2, level=1)
+    aa = [];
     bb = []
-    bb.append(np.concatenate(aa1, axis=0))
+    #pituus
+    # floor (pituus/16000)
+    loops = range(1,int(math.floor(len(sarake)/16000)))
+    max_loops = int(len(sarake) - math.floor(len(sarake)/16000)*16000)
+    
+    wave2 = pywt.Wavelet('db4')
+    
+    sarake1 = np.array(sarake[0:16000])
+
+    (cA6, cD6), (cA5, cD5), (cA4, cD4), (cA3, cD3), (cA2, cD2), (cA1, cD1) = pywt.swt(sarake1, wave2, level=6)
+    aa = np.column_stack((cD1,cD2,cD3,cD4,cD5,cD6))
+    
+    for loop in loops:
+    
+        # loop yli len(col) mod 16000 tai 8000
+        sarake1 = np.array(sarake[16000*loop:16000*(loop+1)])
+    
+        (cA6, cD6), (cA5, cD5), (cA4, cD4), (cA3, cD3), (cA2, cD2), (cA1, cD1) = pywt.swt(sarake1, wave2, level=6)
+        bb = np.column_stack((cD1,cD2,cD3,cD4,cD5,cD6))
+        aa = np.vstack((aa,bb))
+    
+    # lopussa valitaan viimeiset 16000
+    # ja sijoitetaan kohtaan [(loops*16000):len(sarake)]
+    sarake2 = np.array(sarake[(len(sarake) - 16000):len(sarake)])
+    (cA6, cD6), (cA5, cD5), (cA4, cD4), (cA3, cD3), (cA2, cD2), (cA1, cD1) = pywt.swt(sarake2, wave2, level=6)
+    bb = np.column_stack((cD1,cD2,cD3,cD4,cD5,cD6))[(len(cD1)-max_loops):len(cD1)]
+    
+    aa = np.vstack((aa,bb))
+    #aa = np.concatenate((aa,bb), axis=0)
     #bb.append(np.concatenate(aa2, axis=0))
-    return np.concatenate((bb), axis=0).T
+    return aa
     
 #%%########### Initialize ####################################################
 os.chdir("/media/winter/DA70C3D670C3B791/eegdata")
@@ -90,19 +115,9 @@ for subject in subjects:
     X_test_wave = np.concatenate(X_test,axis=0)
     y = np.concatenate(y,axis=0)
     
-    trigger = 0 
+    X_test = np.concatenate((X_test),axis=0)
+    X_train = np.concatenate((X_train),axis=0)
     
-    if is_odd(len(X_train_wave[:,0])):
-        print("Train rows "+ str(X_train_wave.shape[0])+". Train data is odd, correcting")
-        X_train_wave = X_train_wave[:-1, :]
-        y = y[:-1, :]
-        
-    if is_odd(len(X_test_wave[:,0])):
-        print("Test rows "+ str(X_test_wave.shape[0])+". Test data is odd, correcting")
-        X_test_wave = X_test_wave[:-1, :]
-        trigger = 1
-
-    print pywt.swt_max_level(X_test_wave.shape[0])
     print X_test_wave.shape
 
     print("Transforming test")    
@@ -111,33 +126,24 @@ for subject in subjects:
     print("Transforming train")    
     X_train_wave = muunna_frame(X_train_wave)
         
-
-    if trigger:
-        print("Test rows "+ str(X_test_wave.shape[0]))
-        add_line = X_train_wave[0,:]
-        X_test_wave = np.vstack((X_test_wave,add_line)) ### JATKA TASTA
-        print("Added row. Test rows "+ str(X_test_wave.shape[0]))
-
     # Normalization?
-    X_train, scaler = compute_features(X_train)  
-    X_test = compute_features(X_test, scaler)   #pass the learned mean and std to normalized test data
-  
+    #X_train, scaler = compute_features(X_train)  
+    #X_test = compute_features(X_test, scaler)   #pass the learned mean and std to normalized test data
    
     # test SVM for 2 first subjects
     if subject in subjects:
 
         # write file
-        submission_file1 = 'datad/train'+str(subject)+'.csv'
-        submission_file2 = 'datad/test'+str(subject)+'.csv'
+        submission_file1 = 'datae/train'+str(subject)+'.csv'
+        submission_file2 = 'datae/test'+str(subject)+'.csv'
         
         # create pandas object for submission
-        submission1 = pd.DataFrame(data=np.concatenate((y,X_train, X_train_wave),axis=1))
+        #submission1 = pd.DataFrame(data=np.concatenate((y,X_train, X_train_wave),axis=1))
         # write file
-        submission1.to_csv(submission_file1,index_label='id',float_format='%.3f')
+        #submission1.to_csv(submission_file1,index_label='id',float_format='%.3f')
                
-        submission2 = pd.DataFrame(index=np.concatenate(idx), data=np.concatenate((X_test,X_test_wave),axis=1))
+        #submission2 = pd.DataFrame(index=np.concatenate(idx), data=np.concatenate((X_test,X_test_wave),axis=1))
         # write file
-        submission2.to_csv(submission_file2,index_label='id',float_format='%.3f')
+        #submission2.to_csv(submission_file2,index_label='id',float_format='%.3f')
         print('subject '+str(subject)+' saved')
-
 
