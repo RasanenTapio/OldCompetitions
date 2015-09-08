@@ -13,25 +13,27 @@ output_dir <- "weight1"
 setwd("C:/marketingdata")
 # Set seed
 
-# Load data
+# Load data # improve this with: na=c("",NA,-1,9999,999))
 train <- fread("C:/marketingdata/data/train.csv")
 test <- fread("C:/marketingdata/data/test.csv")
 
 # Correct missing values and modify variables
 feature.names <- names(train)[2:ncol(train)-1]
 
-cat("assuming text variables are categorical & replacing them with numeric ids\n")
-# categorical <- vector()
+#### ADDITION:
+cat("assuming text variables
+ are categorical & replacing them with numeric ids\n")
+categorical <- vector()
 for (f in feature.names) {
   if (class(train[[f]])=="character") {
     levels <- unique(c(train[[f]], test[[f]]))
     train[[f]] <- as.integer(factor(train[[f]], levels=levels))
     test[[f]]  <- as.integer(factor(test[[f]],  levels=levels))
-	# categorical <- c(categorical,train[[f]])
+	categorical <- c(categorical,f)
   }
 }
-# cat(categorical) # print categorical variable names or numbers
-
+categorical # print categorical variable names or numbers
+#### ADDITION:
 cat("replacing missing values with -1\n")
 train[is.na(train)] <- -1
 test[is.na(test)]   <- -1
@@ -72,4 +74,4 @@ write.table(train, file = paste(output_dir,'/train.csv', sep = ""),
 	
 write.table(valid, file = paste(output_dir,'/valid.csv', sep = ""),
 	row.names = FALSE, quote = FALSE, col.names = TRUE, sep=",")
-
+print("done")
