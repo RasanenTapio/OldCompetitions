@@ -4,7 +4,7 @@ setwd("C:/marketingdata")
 
 #### h2o cluster ####
 library(h2o)
-localH2O <- h2o.init(nthread=4,Xmx="8g")
+localH2O <- h2o.init(nthread=8,Xmx="8g")
 
 # Function to shorten h2o.auc call
 auc <- function(model_in){
