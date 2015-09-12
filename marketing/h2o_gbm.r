@@ -16,8 +16,8 @@ auc <- function(model_in){
 predictors <- 2:1933
 response <- 1934
 puut <- 15
-use_datasets <- "weight1"
-results_file = "rf_t81_d12_h2o"
+use_datasets <- "weight5"
+results_file = "gbm_t81_d12_h2o"
 
 # Load data and training data and set labels
 pathToTrain = paste("C:/marketingdata/",use_datasets,"/train.csv", sep = "")
@@ -32,30 +32,34 @@ train_valid = h2o.importFile(localH2O, path = pathToValid, header=TRUE)
 train_hex$target <- as.factor(train_hex$target)
 train_valid$target <- as.factor(train_valid$target)
 	
-model_gbm1 <- h2o.gbm(y = response, x = predictors, # model_id = "" set name!
+model_gbm1 <- h2o.gbm(y = response, x = predictors, model_id = "nalle",
 	training_frame = train_hex, validation = train_valid,
 	distribution = "bernoulli",
-	n.tree = 71, learn_rate = 0.2, max_depth = 6)
+	ntrees = 71, learn_rate = 0.2, max_depth = 6)
 
 err <- auc(model_gbm1); err
-	
+print("Get Model") # getModel "nalle"
+
 # interaction.depth = c(6,8,7))
 # depth 6, trees 45 : AUC 0.76848
 # depth 6, trees 71 : AUC 0.77028 (converges at 56 trees?) (12+min)
 # depth 6, trees 15 : AUC 0.7693006
 
 # Single model
-model_deep1 <- h2o.deeplearning(y = response, x = predictors,
+model_deep1 <- h2o.deeplearning(y = response, x = predictors, model_id = "nallen",
 	training_frame = train_hex, validation_frame = train_valid,
 	  activation= "RectifierWithDropout",
 	  hidden=c(1281,986,521),
+	  distribution = "bernoulli",
 	  balance_classes = TRUE,
 	  classification_stop = -1,
-	  epochs = 25,
+	  epochs = 5,
+	  rate = 0.05, # tune this?
 	  l1 = 1e-5,
 	  l2 = 1e-3)
 	 
 err2 <- auc(model_deep1); err2
+
 	
 # c(512,256,256): AUC: 0.70497 (2 epocsh)
 # training samples = x?
@@ -70,7 +74,7 @@ err2 <- auc(model_deep1); err2
 # c(1281,986,521): AUC: 0.7252116 (epochs 5)
 # c(1281,986,521): AUC: xxx (epochs 25)
 
-model_rf1 <- h2o.randomForest(y = response, x = predictors,
+model_rf1 <- h2o.randomForest(y = response, x = predictors, model_id = "nallerf",
 	 training_frame = train_hex, validation = train_valid,
 	 classification = TRUE,
 	 max_depth = 12,
