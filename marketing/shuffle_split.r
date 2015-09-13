@@ -7,7 +7,7 @@ library(data.table)
 # Parameters
 make_splits <- 2
 splits_ratios <- c(0.70, 0.15, 0.15)
-output_dir <- "weight1"
+output_dir <- "weight5"
 
 # Working directory
 setwd("C:/marketingdata")
@@ -23,16 +23,16 @@ feature.names <- names(train)[2:ncol(train)-1]
 #### ADDITION:
 cat("assuming text variables
  are categorical & replacing them with numeric ids\n")
-categorical <- vector()
+#categorical <- vector()
 for (f in feature.names) {
   if (class(train[[f]])=="character") {
     levels <- unique(c(train[[f]], test[[f]]))
     train[[f]] <- as.integer(factor(train[[f]], levels=levels))
     test[[f]]  <- as.integer(factor(test[[f]],  levels=levels))
-	categorical <- c(categorical,f)
+	#categorical <- c(categorical,f)
   }
 }
-categorical # print categorical variable names or numbers
+#categorical # print categorical variable names or numbers
 #### ADDITION:
 cat("replacing missing values with -1\n")
 train[is.na(train)] <- -1
@@ -57,14 +57,16 @@ if (make_splits == 3) {
 } else {
 	sample0_train <- sample0[1:floor(length(sample0)*0.8)]
 	sample0_valid <- sample0[(floor(length(sample0)*0.8)+1):length(sample0)]
-	sample1_train <- sample0[1:floor(length(sample1)*0.8)]
-	sample1_valid <- sample0[(floor(length(sample1)*0.8)+1):length(sample1)]
+	sample1_train <- sample1[1:floor(length(sample1)*0.8)]
+	sample1_valid <- sample1[(floor(length(sample1)*0.8)+1):length(sample1)]
 }
 
 # Save 2-3 datasets to output_dir
 
-valid <- rbind(train$X1[sample0_valid,],train$X0[sample1_valid,])
-train <-rbind(train$X1[sample0_train,],train$X0[sample1_train,])
+valid <- rbind(train$X1[sample1_valid,],train$X0[sample0_valid,])
+train <-rbind(train$X1[sample1_train,],train$X0[sample0_train,])
+
+# as.matrix to speed up!
 
 write.table(test, file = paste(output_dir,'/test.csv', sep = ""),
 	row.names = FALSE, quote = FALSE, col.names = TRUE, sep=",")
