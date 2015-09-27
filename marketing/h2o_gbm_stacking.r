@@ -1,112 +1,138 @@
-# Features from Python: Butter filter and haar wavelet
-
+# Working directory
 setwd("C:/marketingdata")
 
 #### h2o cluster ####
 library(h2o)
 localH2O <- h2o.init(nthread=4,Xmx="8g")
 set.seed(6)
+use_datasets <- "featuredate3"
 
 # Function to shorten h2o.auc call
-auc <- function(model_in){
-	err <- h2o.auc( h2o.performance(model_in, train_valid) )
+auc_stack <- function(model_in, data_in){
+	err <- h2o.auc( h2o.performance(model_in, data_in) )
 	return(err)
 }
 
-# Model parameters
-predictors <- c(2:1933) # predictors <- c(2:1933, 1935:1938)
-response <- 1934
-use_datasets <- "weight2a"
-results_file = "gbm_t67_d6_h2o_datetest1"
 
 # Load data and training data and set labels
 pathToTrain = paste("C:/marketingdata/",use_datasets,"/train.csv", sep = "")
 pathToValid = paste("C:/marketingdata/",use_datasets,"/valid.csv", sep = "")
 pathToTest = paste("C:/marketingdata/",use_datasets,"/test.csv", sep = "")
 
-# Variable importance
-importance <- read.csv(paste("C:/marketingdata/",use_datasets,"/importance.csv", sep = ""))
-importance <- as.vector(as.matrix(importance))
-
 # Load data
-train_hex = h2o.importFile(localH2O, path = pathToTrain, header=TRUE)
+#train_hex = h2o.importFile(localH2O, path = pathToTrain, header=TRUE)
 train_valid = h2o.importFile(localH2O, path = pathToValid, header=TRUE)
 
 # Convert to factor (note: h2o 3.0 requires this)
-train_hex$target <- as.factor(train_hex$target)
+#train_hex$target <- as.factor(train_hex$target)
 train_valid$target <- as.factor(train_valid$target)
 
-# datasets A 1:10, i = validation set, A / i = training set
-# Split to 10 parts
-rat <- rep(0.333,2)
-train_hex_split <- h2o.splitFrame(train_hex, ratios = rat)
-
-
-# verify
-head(train_hex_split[[3]]$target)
-
-for (i in 1:3) {
-
-	# fit model to sample
-	model_gbm1 <- h2o.gbm(y = response, x = predictors,
-		model_id = paste("gbm",i,sep=""),
-		training_frame = train_hex_split[[i]], validation = train_valid, # train and valid
-		distribution = "bernoulli",
-		#nfolds = 3,
-		ntrees = 78, learn_rate = 0.2, max_depth = 6) # best: 78
-
-	err <- auc(h2o.getModel(paste("gbm",i,sep=""))); print(err)
-}
-
-### Predict for test set
-# Fit models and save results
-test_hex = h2o.importFile(localH2O, path = pathToTest, header=TRUE)
-
-# Predict
-idxs <- as.data.frame(test_hex$ID)
-
-results <- data.frame(idx = 1:dim(test_hex)[1])
-results <- results[,-1]
-models <- 3
-for (i in 1:models){
-	results <- cbind(results, as.data.frame(h2o.predict(h2o.getModel(paste("gbm",i,sep="")),test_hex)$p1))
-}
-names(results) <- paste("model",1:models)
-
-res_avg <- rowMeans(results)
-
-results_file <- "gbm_m3_split3_val_t78"
-
-submission <- as.matrix(data.frame(ID = as.character(idxs$ID), target = res_avg))
-
-write.table(submission, file = paste('results/', results_file,'.csv', sep = ""), row.names = FALSE,
-quote = FALSE, col.names = TRUE, sep=",")
-
-# Stacking (save 10th frame for stacking)
-
 # models to get:
+models <- read.csv("featuredate3/stacking/models_p.csv", stringsAsFactors = FALSE)$modelmeta
+spath <- 'featuredate3/stacking/'
 
-# construct loop for this names(d)[names(d)=="beta"] <- "two"
-train_valid$temp <- h2o.predict(h2o.getModel("gbm1"),train_valid)$predict # get p1 and predict
-# rename model_p1 model_c1
-train_valid$p1 <- h2o.predict(h2o.getModel("gbm1"),train_valid)$p1
+#stacking_class <- matrix(0,dim(train_valid),length(models)+1)
+stacking_prob <- matrix(0,dim(train_valid),length(models)+1)
 
+for (i in 1:length(models)){
+	m <- models[i]
+	#stacking_class[,i] <- read.csv(paste(spath,models[i], "_vc.csv", sep =""), stringsAsFactors = FALSE)$target
+	stacking_prob[,i] <- read.csv(paste(spath,models[i], "_vp.csv", sep =""), stringsAsFactors = FALSE)$target
+}
 
-model_stack = h2o.naiveBayes(x = c(paste("p",1:10,sep="")), y = response, model_id = "stack1",
-		 training_frame = train_valid)
+# Upload to cluster
+#stacking_class[,length(models)+1] <- as.vector(as.data.frame(train_valid$target)$target)
+stacking_prob[,length(models)+1] <- as.vector(as.data.frame(train_valid$target)$target)
+#colnames(stacking_class) <- c(paste("Var",1:length(models),sep=""),"target")
+colnames(stacking_prob) <- c(paste("Var",1:length(models),sep=""),"target")
 
-model_stack <- h2o.deeplearning(y = response, x = c(paste("c",1:10,sep="")), model_id = "stack1",
-	training_frame = train_valid,
+stacking1_hex <- as.h2o(stacking_prob)
+#stacking2_hex <- as.h2o(stacking_class)
+stacking1_hex$target <- as.factor(stacking1_hex$target)
+#stacking2_hex$target <- as.factor(stacking2_hex$target)
+
+# Split
+stack_hex_split <- h2o.splitFrame(stacking1_hex, ratios = 0.5)
+
+response_s <- which(names(stacking1_hex) == "target")
+predictors_s <- 10:20 # available 
+
+# 
+model_stack = h2o.naiveBayes(x = predictors_s, y = response_s, model_id = "stack1",
+		 training_frame = stack_hex_split[[1]])
+
+auc_stack(model_stack, stack_hex_split[[2]]) 
+# 0.7555 on
+# 0.7555903
+# 0.7546265 on adding 2nd rf model
+# 0.7536499 on adding 3rd rf model
+# 8:18 : 0.7733665
+# 10:18 : 0.7798353
+# 12:18 : 0.7852689
+# 15:18 : 0.7907206
+# 16:18 : 0.7914214 # conclusion: train more good models
+# 17:18 : 0.7852689
+# 10:20 # 0.939758 DA FUK?
+
+model_stack <- h2o.deeplearning(y = response_s, x = predictors_s, model_id = "stack1",
+	training_frame = stack_hex_split[[1]], validation = stack_hex_split[[2]],
 	  activation= "Tanh",
-	  hidden = c(66,33,33,22),
+	  hidden = c(77,33,33), # best on hidden = c(66,33,33,22),
 	  #loss = "CrossEntropy",
-	  #train_samples_per_iteration = 5000,
 	  epochs = 50,
-	  #hidden_dropout_ratios = c(0.5,0.5,0.5),
-	  seed = 12)
-		 
-auc(h2o.getModel("stack1"))
+	  hidden_dropout_ratios = c(0,0,0),
+	  seed = 11)
+
+auc_stack(model_stack, stack_hex_split[[2]])
+
+# 0.7476609 on p
+# 0.7525552 on p
+# 0.7409493 on adding 2nd rf model
+# 0.7460762 on adding 3rd rf model # LB AUC: 0.72
+# 0.7893497 on 18 models
+# 9:18: 0.7887448 on  models
+# 12:18: 0.7916486 (0.7/0.3 split: 0.7931127 on valid)
+# 10:19: 0.7920637 (no LB improvement)
+# 10:20 # 0.994438 da fak?
+
+# c(77,33,33) network:
+# 10:19 - 0.7930042
+
+# different settings: 
+
 # Bayes: 0.7506003 on training data
 # NN:
+
+#### Save stacked
+
+# Test dimension 145232   1979
+
+# Get test
+#test_class <- matrix(0,145232,length(models))
+test_prob <- matrix(0,145232,length(models))
+spath <- 'results/'
+
+# Data starts from model 10
+for (i in 10:length(models)){
+	m <- models[i]
+	#test_class[,i] <- read.csv(paste(spath,models[i], "_tc.csv", sep =""), stringsAsFactors = FALSE)$target
+	test_prob[,i] <- read.csv(paste(spath,models[i], ".csv", sep =""), stringsAsFactors = FALSE)$target
+}
+#colnames(test_class) <- paste("Var",1:length(models),sep="")
+colnames(test_prob) <- paste("Var",1:length(models),sep="")
+testprob_hex <- as.h2o(test_prob) # this explains it..
+#testclass_hex <- as.h2o(stacking_class)
+
+test_hex = h2o.importFile(localH2O, path = pathToTest, header=TRUE)
+
+results_file <- "stack_test6_10m"
+
+pred_1 <- as.data.frame(h2o.predict(model_stack,testprob_hex))
+idxs <- as.data.frame(test_hex$ID)
+
+results <- as.matrix(data.frame(ID = as.character(idxs$ID), target = pred_1$p1))
+
+write.table(results, file = paste('results/', results_file,'.csv', sep = ""), row.names = FALSE,
+quote = FALSE, col.names = TRUE, sep=",")
 
 h2o.shutdown(localH2O)

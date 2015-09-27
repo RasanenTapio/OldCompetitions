@@ -1,12 +1,11 @@
 # Stacking ensemble / weighting
 # Shuffle and split data to separate train, test and validation set
 
-#library(auc)
 library(data.table)
 
 # Parameters
 make_splits <- 2
-output_dir <- "featuredate2"
+output_dir <- "featuredate4"
 
 # Working directory
 setwd("C:/marketingdata")
@@ -113,10 +112,10 @@ names(train) <- c("X0","X1")
 sample0 <- sample(dim(train$X0)[1], size = dim(train$X0)[1])
 sample1 <- sample(dim(train$X1)[1], size = dim(train$X1)[1])
 
-sample0_train <- sample0[1:floor(length(sample0)*0.90)]
-sample0_valid <- sample0[(floor(length(sample0)*0.90)+1):length(sample0)]
-sample1_train <- sample1[1:floor(length(sample1)*0.90)]
-sample1_valid <- sample1[(floor(length(sample1)*0.90)+1):length(sample1)]
+sample0_train <- sample0[1:floor(length(sample0)*0.80)]
+sample0_valid <- sample0[(floor(length(sample0)*0.80)+1):length(sample0)]
+sample1_train <- sample1[1:floor(length(sample1)*0.80)]
+sample1_valid <- sample1[(floor(length(sample1)*0.80)+1):length(sample1)]
 
 # Compare this to results
 table(train$X0$target)
@@ -127,9 +126,14 @@ table(train$X1$target)
 # Shuffle train to be able to split with h2o:
 valid <- rbind(train$X1[sample1_valid,],train$X0[sample0_valid,])
 train <-rbind(train$X1[sample1_train,],train$X0[sample0_train,])
+# Shuffle train set
 head(train$ID)
 train <- train[sample(1:dim(train)[1], dim(train)[1]),]
 head(train$ID)
+# Shuffle validation set
+head(valid$ID)
+valid <- valid[sample(1:dim(valid)[1], dim(valid)[1]),]
+head(valid$ID)
 
 # Compare to previous
 table(train$target) + table(valid$target)
