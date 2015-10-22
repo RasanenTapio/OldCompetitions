@@ -3,7 +3,7 @@ setwd("C:/marketingdata")
 #### h2o cluster ####
 library(h2o)
 localH2O <- h2o.init(nthread=4,Xmx="8g")
-use_datasets <- "featuredate3"
+use_datasets <- "featuredate6"
 
 # Function to shorten h2o.auc call
 auc <- function(model_in,data_in){
@@ -30,10 +30,8 @@ train_valid$target <- as.factor(train_valid$target)
 
 ##### MODELLING
 # Model parameters
-response <- which(names(train_hex)=="target") # 1919
-#predictors <- predictors <- names(train_hex)[!(names(train_hex) %in% c("target", "ID"))]
-predictors <- names(train_hex)[!(names(train_hex) %in%
-	c("target", "ID","VAR_0073_date","VAR_0073_month","VAR_0073_wd","VAR_0073_year"))] # without VAR_0073_date
+response <- "target" # 1919
+predictors <- names(train_hex)[!(names(train_hex) %in% c("target", "ID"))]
 
 ## Additional:
 rat <- rep(0.3,3)
@@ -63,7 +61,12 @@ for(i in 1:length(use_param)){
 
 # 10: 50 trees: 26min -> 115 trees: 0.7789472
 # 10: 115 trees, rate 0.03: 0.7756567 (can still improve)
-
+	model_gbm1 <- h2o.gbm(y = response, x = predictors, model_id = "gbm1",
+		training_frame = train_hex, validation = train_valid, #validation = train_valid,
+		distribution = "bernoulli",
+		ntrees = 50, learn_rate = 0.03, max_depth = 10, seed = 11) # set seed
+		
+	err <- auc(model_gbm1,train_hex_split[[2]]); print(err)
 # when does rate 0.05 converge?
 # 0.7741312 on 112 trees, depth 6
 # 0.7778351 on 112 trees, depth 8 / 46min --- best?
@@ -76,9 +79,9 @@ for(i in 1:length(use_param)){
 
 # Single model
 model_deep1 <- h2o.deeplearning(y = response, x = predictors, model_id = "deep1",
-	training_frame = train_hex_split[[1]], validation_frame = train_hex_split[[4]],
+	training_frame = train_hex, validation_frame = train_valid,
 	  activation= "RectifierWithDropout",
-	  hidden = c(512,256,256),
+	  hidden = c(1024,1024,256),
 	  #balance_classes = TRUE,
 	  epochs = 25)
 	  #l1 = 1e-5,
